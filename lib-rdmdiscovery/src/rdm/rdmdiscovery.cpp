@@ -23,6 +23,10 @@
  * THE SOFTWARE.
  */
 
+#ifdef NDEBUG
+# undef NDEBUG
+#endif
+
 #include <cstdint>
 #include <cstring>
 #ifndef NDEBUG
