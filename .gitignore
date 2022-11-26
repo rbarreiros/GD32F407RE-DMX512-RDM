@@ -51,6 +51,5 @@
 *.su
 *.list
 
-*.bin
 udp_send
 0/*

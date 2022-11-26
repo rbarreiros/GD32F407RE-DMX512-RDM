@@ -57,9 +57,7 @@ enum class TxRxState {
 	RDMDATA,
 	CHECKSUMH,
 	CHECKSUML,
-	RDMDISCFE,
-	RDMDISCEUID,
-	RDMDISCECS,
+	RDMDISC,
 	DMXINTER
 };
 
@@ -175,55 +173,9 @@ static void irq_handler_dmx_rdm_input(const uint32_t uart, const uint32_t nPortI
 
 	switch (s_RxBuffer[nPortIndex].State) {
 	case TxRxState::IDLE:
-		s_RxBuffer[nPortIndex].State = TxRxState::RDMDISCFE;
+		s_RxBuffer[nPortIndex].State = TxRxState::RDMDISC;
 		s_RxBuffer[nPortIndex].data[0] = data;
 		s_RxBuffer[nPortIndex].Rdm.nIndex = 1;
-#if !defined(CONFIG_DMX_TRANSMIT_ONLY)
-		switch(nPortIndex){
-		case 0:
-			TIMER_CH0CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 1064U);
-			break;
-#if DMX_MAX_PORTS >= 2
-		case 1:
-			TIMER_CH1CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 1064U);
-			break;
-#endif
-#if DMX_MAX_PORTS >= 3
-		case 2:
-			TIMER_CH2CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 1064U);
-			break;
-#endif
-#if DMX_MAX_PORTS >= 4
-		case 3:
-			TIMER_CH3CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 1064U);
-			break;
-#endif
-#if DMX_MAX_PORTS >= 5
-		case 4:
-			TIMER_CH0CV(TIMER3) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER3)) + 1064U);
-			break;
-#endif
-#if DMX_MAX_PORTS >= 6
-		case 5:
-			TIMER_CH1CV(TIMER3) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER3)) + 1064U);
-			break;
-#endif
-#if DMX_MAX_PORTS >= 7
-		case 6:
-			TIMER_CH2CV(TIMER3) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER3)) + 1064U);
-			break;
-#endif
-#if DMX_MAX_PORTS == 8
-		case 7:
-			TIMER_CH3CV(TIMER3) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER3)) + 1064U);
-			break;
-#endif
-		default:
-			assert(0);
-			__builtin_unreachable();
-			break;
-		}
-#endif
 		logic_analyzer::ch1_set();
 		logic_analyzer::ch2_set();
 		break;
@@ -380,40 +332,63 @@ static void irq_handler_dmx_rdm_input(const uint32_t uart, const uint32_t nPortI
 		s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
 	}
 		break;
-	case TxRxState::RDMDISCFE:
+	case TxRxState::RDMDISC:
 		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
 		s_RxBuffer[nPortIndex].data[nIndex] = data;
 		s_RxBuffer[nPortIndex].Rdm.nIndex++;
 
-		if ((data == 0xAA) || (s_RxBuffer[nPortIndex].Rdm.nIndex == 9)) {
+		if (s_RxBuffer[nPortIndex].Rdm.nIndex > 24) {
 			s_RxBuffer[nPortIndex].Rdm.nDiscIndex = 0;
-			s_RxBuffer[nPortIndex].State = TxRxState::RDMDISCEUID;
-		}
-		break;
-	case TxRxState::RDMDISCEUID:
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Rdm.nIndex++;
-		s_RxBuffer[nPortIndex].Rdm.nDiscIndex++;
-
-		if (s_RxBuffer[nPortIndex].Rdm.nDiscIndex == 2 * RDM_UID_SIZE) {
-			s_RxBuffer[nPortIndex].Rdm.nDiscIndex = 0;
-			s_RxBuffer[nPortIndex].State = TxRxState::RDMDISCECS;
-		}
-		break;
-	case TxRxState::RDMDISCECS:
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Rdm.nIndex++;
-
-		s_RxBuffer[nPortIndex].Rdm.nDiscIndex++;
-
-		if (s_RxBuffer[nPortIndex].Rdm.nDiscIndex == 4) {
+			s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket |= 0x4000;
 			s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
-			s_RxBuffer[nPortIndex].Rdm.nIndex |= 0x4000;
-			gv_RdmDataReceiveEnd = DWT->CYCCNT;
-			logic_analyzer::ch1_clear();
+			break;
 		}
+
+	    switch(nPortIndex){
+	    case 0:
+	    	TIMER_CH0CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 66U);
+	        break;
+#if DMX_MAX_PORTS >= 2
+	    case 1:
+	    	TIMER_CH1CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 66U);
+	        break;
+#endif
+#if DMX_MAX_PORTS >= 3
+	    case 2:
+	        TIMER_CH2CV(TIMER2) = nPulse;
+	        break;
+#endif
+#if DMX_MAX_PORTS >= 4
+	    case 3:
+	         TIMER_CH3CV(TIMER2) = nPulse;
+	        break;
+#endif
+#if DMX_MAX_PORTS >= 5
+	    case 4:
+	        TIMER_CH0CV(TIMER3) = nPulse;
+	        break;
+#endif
+#if DMX_MAX_PORTS >= 6
+	    case 5:
+	        TIMER_CH1CV(TIMER3) = nPulse;
+	        break;
+#endif
+#if DMX_MAX_PORTS >= 7
+	    case 6:
+	        TIMER_CH2CV(TIMER3) = nPulse;
+	        break;
+#endif
+#if DMX_MAX_PORTS == 8
+	    case 7:
+	         TIMER_CH3CV(TIMER3) = nPulse;
+	        break;
+#endif
+	    default:
+			assert(0);
+			__builtin_unreachable();
+	        break;
+	    }
+
 		break;
 	default:
 		s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket= 0; // This is correct.
@@ -980,7 +955,7 @@ void TIMER2_IRQHandler() {
 			s_RxBuffer[0].State = TxRxState::IDLE;
 			s_RxBuffer[0].Dmx.nSlotsInPacket |= 0x8000;
 			logic_analyzer::ch1_clear();
-		} else if ((s_RxBuffer[0].State == TxRxState::RDMDISCEUID) || (s_RxBuffer[0].State == TxRxState::RDMDISCECS)) {
+		} else if (s_RxBuffer[0].State == TxRxState::RDMDISC) {
 			s_RxBuffer[0].State = TxRxState::IDLE;
 			s_RxBuffer[0].Dmx.nSlotsInPacket |= 0x4000;
 			logic_analyzer::ch1_clear();
@@ -993,7 +968,7 @@ void TIMER2_IRQHandler() {
 			s_RxBuffer[1].State = TxRxState::IDLE;
 			s_RxBuffer[1].Dmx.nSlotsInPacket |= 0x8000;
 			logic_analyzer::ch1_clear();
-		} else if ((s_RxBuffer[1].State == TxRxState::RDMDISCEUID) || (s_RxBuffer[1].State == TxRxState::RDMDISCECS)) {
+		} else if (s_RxBuffer[1].State == TxRxState::RDMDISC) {
 			s_RxBuffer[1].State = TxRxState::IDLE;
 			s_RxBuffer[1].Dmx.nSlotsInPacket |= 0x4000;
 			logic_analyzer::ch1_clear();
