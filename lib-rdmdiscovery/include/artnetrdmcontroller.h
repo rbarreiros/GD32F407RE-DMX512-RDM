@@ -1,5 +1,5 @@
 /**
- * @file artnetdiscovery.h
+ * @file artnetrdmcontroller.h
  *
  */
 /* Copyright (C) 2017-2022 by Arjan van Vught mailto:info@orangepi-dmx.nl
@@ -23,8 +23,8 @@
  * THE SOFTWARE.
  */
 
-#ifndef ARTNETDISCOVERY_H_
-#define ARTNETDISCOVERY_H_
+#ifndef ARTNETRDMCONTROLLER_H_
+#define ARTNETRDMCONTROLLER_H_
 
 #include <cstdint>
 #include <cstdio>
@@ -98,4 +98,4 @@ private:
 	static uint32_t s_nPorts;
 };
 
-#endif /* ARTNETDISCOVERY_H_ */
+#endif /* ARTNETRDMCONTROLLER_H_ */

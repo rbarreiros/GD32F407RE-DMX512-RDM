@@ -44,7 +44,6 @@
 #include "artnet4node.h"
 #include "artnetparams.h"
 #include "artnetmsgconst.h"
-#include "artnet/displayudfhandler.h"
 #include "artnettriggerhandler.h"
 
 #include "pixeldmxconfiguration.h"
@@ -133,9 +132,6 @@ void main() {
 	}
 
 	node.SetArtNetStore(&storeArtNet);
-
-	DisplayUdfHandler displayUdfHandler;
-	node.SetArtNetDisplay(&displayUdfHandler);
 
 	PixelDmxConfiguration pixelDmxConfiguration;
 

@@ -1,8 +1,11 @@
 /**
- * @file ntpclientdisplay.cpp
+ * @file artnetnodehandlerdmin.cpp
  *
  */
-/* Copyright (C) 2021 by Arjan van Vught mailto:info@orangepi-dmx.nl
+/**
+ * Art-Net Designed by and Copyright Artistic Licence Holdings Ltd.
+ */
+/* Copyright (C) 2022 by Arjan van Vught mailto:info@orangepi-dmx.nl
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,18 +26,25 @@
  * THE SOFTWARE.
  */
 
-#include "ntpclient.h"
-#include "displayudf.h"
+#include <cstdint>
+#include <cstring>
+#include <cassert>
 
-void NtpClientDisplay::ShowNtpClientStatus(ntpclient::Status nStatus) {
-	if (nStatus == ntpclient::Status::IDLE) {
-		Display::Get()->TextStatus("NTP Client", Display7SegmentMessage::INFO_NTP);
-		return;
-	}
+#include "artnetnode.h"
+#include "artnet.h"
+#include "artnetrdm.h"
 
-	if (nStatus == ntpclient::Status::FAILED) {
-		Display::Get()->TextStatus("Error: NTP", Display7SegmentMessage::ERROR_NTP);
-		return;
+#include "network.h"
+#include "hardware.h"
+
+#include "panel_led.h"
+
+#include "debug.h"
+
+void ArtNetNode::HandleRdmIn() {
+	for (uint32_t i = 0; i < artnetnode::MAX_PORTS; i++) {
+		if (!m_InputPort[i].genericPort.bIsEnabled) {
+			continue;
+		}
 	}
 }
-

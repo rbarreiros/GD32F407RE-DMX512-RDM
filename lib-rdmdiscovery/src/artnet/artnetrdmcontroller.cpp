@@ -1,5 +1,5 @@
 /**
- * @file artnetdiscovery.cpp
+ * @file artnetrdmcontroller.cpp
  *
  */
 /* Copyright (C) 2017-2022 by Arjan van Vught mailto:info@orangepi-dmx.nl
@@ -30,7 +30,7 @@
 #include "hardware.h"
 
 #include "artnetnode.h"
-#include "artnetdiscovery.h"
+#include "artnetrdmcontroller.h"
 
 #include "rdm.h"
 #include "rdm_e120.h"

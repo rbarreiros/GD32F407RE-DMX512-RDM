@@ -229,7 +229,7 @@ public:
 			return m_RDMSubDevices.GetPersonality(nSubDevice, nPersonality);
 		}
 
-		assert(nPersonality < m_tRDMDeviceInfo.personality_count);
+		assert(nPersonality <= m_tRDMDeviceInfo.personality_count);
 
 		return m_pRDMPersonalities[nPersonality - 1];
 	}

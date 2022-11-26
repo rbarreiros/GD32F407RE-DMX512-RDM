@@ -1,11 +1,8 @@
 /**
- * @file artnetconst.cpp
+ * @file network.cpp
  *
  */
-/**
- * Art-Net Designed by and Copyright Artistic Licence Holdings Ltd.
- */
-/* Copyright (C) 2019-2022 by Arjan van Vught mailto:info@orangepi-dmx.nl
+/* Copyright (C) 2021-2022 by Arjan van Vught mailto:info@orangepi-dmx.nl
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,12 +23,36 @@
  * THE SOFTWARE.
  */
 
-#include <cstdint>
+#include "network.h"
+#include "displayudf.h"
 
-#include "artnetconst.h"
-#include "artnet.h"
+namespace network {
+void display_emac_start() {
+	DisplayUdf::Get()->ShowEmacStart();
+}
 
-const uint8_t ArtNetConst::VERSION[] = { 1, 56 };
+void display_ip() {
+	DisplayUdf::Get()->ShowIpAddress();
+}
 
-const uint8_t ArtNetConst::ESTA_ID[artnet::ESTA_SIZE] = { 0x50, 0x00 };	///< https://tsp.esta.org/tsp/working_groups/CP/mfctrIDs.php
-const uint8_t ArtNetConst::OEM_ID[] = { 0xff, 0xff };					///< Waiting OEM from Artistic Licence Holdings Ltd.
+void display_netmask() {
+	DisplayUdf::Get()->ShowNetmask();
+}
+
+void display_gateway() {
+	DisplayUdf::Get()->ShowGatewayIp();
+}
+
+void display_hostname() {
+	DisplayUdf::Get()->ShowHostName();
+}
+
+void display_emac_shutdown() {
+	DisplayUdf::Get()->ShowShutdown();
+}
+
+// DHCP Client
+void display_dhcp_status(network::dhcp::ClientStatus nStatus) {
+	DisplayUdf::Get()->ShowDhcpStatus(nStatus);
+}
+}  // namespace network

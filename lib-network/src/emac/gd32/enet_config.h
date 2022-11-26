@@ -47,30 +47,4 @@
 #error PHY_TYPE is not set
 #endif
 
-#if defined (BOARD_GD32F103RC)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F107RC)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F207RG)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F207VC)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F303RC)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F407RE)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F450VE)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F450VI)
-# include "enet_config_common.h"
-#elif defined (BOARD_GD32F207C_EVAL)
-# include "enet_config_common.h"
-#elif defined (BOARD_BW_OPIDMX4)
-# include "enet_config_common.h"
-#elif defined (BOARD_DMX4)
-# include "enet_config_common.h"
-#else
-# error Board is unknown / not defined
-#endif
-
 #endif /* ENET_CONFIG_H_ */
