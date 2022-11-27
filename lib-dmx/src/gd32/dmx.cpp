@@ -50,19 +50,17 @@
 namespace dmx {
 enum class TxRxState {
 	IDLE,
-	PRE_BREAK,
 	BREAK,
 	MAB,
 	DMXDATA,
 	RDMDATA,
 	CHECKSUMH,
 	CHECKSUML,
-	RDMDISC,
-	DMXINTER
+	RDMDISC
 };
 
 enum class PortState {
-	IDLE = 0, TX, RX
+	IDLE, TX, RX
 };
 
 struct TxData {
@@ -176,10 +174,19 @@ static void irq_handler_dmx_rdm_input(const uint32_t uart, const uint32_t nPortI
 		s_RxBuffer[nPortIndex].State = TxRxState::RDMDISC;
 		s_RxBuffer[nPortIndex].data[0] = data;
 		s_RxBuffer[nPortIndex].Rdm.nIndex = 1;
+#if DMX_MAX_PORTS >= 5
+		if (nPortIndex < 4) {
+#endif
+			sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = TIMER_CNT(TIMER2);
+#if DMX_MAX_PORTS >= 5
+		} else {
+			sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = TIMER_CNT(TIMER3);
+		}
+#endif
 		logic_analyzer::ch1_set();
 		logic_analyzer::ch2_set();
 		break;
-		case TxRxState::BREAK:
+	case TxRxState::BREAK:
 		switch (data) {
 		case START_CODE:
 			s_RxBuffer[nPortIndex].data[0] = START_CODE;
@@ -187,12 +194,11 @@ static void irq_handler_dmx_rdm_input(const uint32_t uart, const uint32_t nPortI
 			sv_nRxDmxPackets[nPortIndex].nCount++;
 			s_RxBuffer[nPortIndex].State = TxRxState::DMXDATA;
 #if DMX_MAX_PORTS >= 5
-			if (nPortIndex <= 3) {
+			if (nPortIndex < 4) {
 #endif
 				sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = TIMER_CNT(TIMER2);
 #if DMX_MAX_PORTS >= 5
-			}
-			else {
+			} else {
 				sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = TIMER_CNT(TIMER3);
 			}
 #endif
@@ -202,7 +208,6 @@ static void irq_handler_dmx_rdm_input(const uint32_t uart, const uint32_t nPortI
 			s_RxBuffer[nPortIndex].data[0] = E120_SC_RDM;
 			s_RxBuffer[nPortIndex].Rdm.nChecksum = E120_SC_RDM;
 			s_RxBuffer[nPortIndex].Rdm.nIndex = 1;
-
 			s_RxBuffer[nPortIndex].State = TxRxState::RDMDATA;
 			logic_analyzer::ch1_set();
 			break;
@@ -211,195 +216,205 @@ static void irq_handler_dmx_rdm_input(const uint32_t uart, const uint32_t nPortI
 			break;
 		}
 		break;
-	case TxRxState::DMXDATA:
-		nIndex = s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket++;
+		case TxRxState::DMXDATA:
+			nIndex = s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket;
+			s_RxBuffer[nPortIndex].data[nIndex] = data;
+			s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket++;
 
-		if (s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket > dmx::max::CHANNELS) {
-			s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket |= 0x8000;
-			s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
-			logic_analyzer::ch1_clear();
-			break;
-		}
-#if !defined(CONFIG_DMX_TRANSMIT_ONLY)
+			if (s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket > dmx::max::CHANNELS) {
+				s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket |= 0x8000;
+				s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
+				logic_analyzer::ch1_clear();
+				break;
+			}
 #if DMX_MAX_PORTS >= 5
-		if (nPortIndex <= 3) {
+			if (nPortIndex <= 3) {
 #endif
-			 nCounter = TIMER_CNT(TIMER2);
+				nCounter = TIMER_CNT(TIMER2);
 #if DMX_MAX_PORTS >= 5
-		}
-		else {
-			nCounter = TIMER_CNT(TIMER3);
-		}
+			} else {
+				nCounter = TIMER_CNT(TIMER3);
+			}
 #endif
-		{
-			const uint16_t nDelta = nCounter - sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious;
-			sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = nCounter;
-			const uint16_t nPulse = nCounter + nDelta + 4;
+			{
+				const uint16_t nDelta = nCounter - sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious;
+				sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = nCounter;
+				const uint16_t nPulse = nCounter + nDelta + 4;
 
-		    switch(nPortIndex){
-		    case 0:
-		        TIMER_CH0CV(TIMER2) = nPulse;
-		        break;
+				switch(nPortIndex){
+				case 0:
+					TIMER_CH0CV(TIMER2) = nPulse;
+					break;
 #if DMX_MAX_PORTS >= 2
-		    case 1:
-		        TIMER_CH1CV(TIMER2) = nPulse;
-		        break;
+				case 1:
+					TIMER_CH1CV(TIMER2) = nPulse;
+					break;
 #endif
 #if DMX_MAX_PORTS >= 3
-		    case 2:
-		        TIMER_CH2CV(TIMER2) = nPulse;
-		        break;
+				case 2:
+					TIMER_CH2CV(TIMER2) = nPulse;
+					break;
 #endif
 #if DMX_MAX_PORTS >= 4
-		    case 3:
-		         TIMER_CH3CV(TIMER2) = nPulse;
-		        break;
+				case 3:
+					TIMER_CH3CV(TIMER2) = nPulse;
+					break;
 #endif
 #if DMX_MAX_PORTS >= 5
-		    case 4:
-		        TIMER_CH0CV(TIMER3) = nPulse;
-		        break;
+				case 4:
+					TIMER_CH0CV(TIMER3) = nPulse;
+					break;
 #endif
 #if DMX_MAX_PORTS >= 6
-		    case 5:
-		        TIMER_CH1CV(TIMER3) = nPulse;
-		        break;
+				case 5:
+					TIMER_CH1CV(TIMER3) = nPulse;
+					break;
 #endif
 #if DMX_MAX_PORTS >= 7
-		    case 6:
-		        TIMER_CH2CV(TIMER3) = nPulse;
-		        break;
+				case 6:
+					TIMER_CH2CV(TIMER3) = nPulse;
+					break;
 #endif
 #if DMX_MAX_PORTS == 8
-		    case 7:
-		         TIMER_CH3CV(TIMER3) = nPulse;
-		        break;
+				case 7:
+					TIMER_CH3CV(TIMER3) = nPulse;
+					break;
 #endif
-		    default:
-				assert(0);
-				__builtin_unreachable();
-		        break;
-		    }
+				default:
+					assert(0);
+					__builtin_unreachable();
+					break;
+				}
+			}
+			break;
+		case TxRxState::RDMDATA: {
+			nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
+			s_RxBuffer[nPortIndex].data[nIndex] = data;
+			s_RxBuffer[nPortIndex].Rdm.nIndex++;
+
+			s_RxBuffer[nPortIndex].Rdm.nChecksum = static_cast<uint16_t>(s_RxBuffer[nPortIndex].Rdm.nChecksum + data);
+
+			const auto *p = reinterpret_cast<struct TRdmMessage*>(&s_RxBuffer[nPortIndex].data[0]);
+
+			nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
+
+			if ((nIndex >= 24) && (nIndex <= sizeof(struct TRdmMessage)) && (nIndex == p->message_length)) {
+				s_RxBuffer[nPortIndex].State = TxRxState::CHECKSUMH;
+				logic_analyzer::ch2_set();
+			} else if (nIndex > sizeof(struct TRdmMessage)) {
+				s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
+			}
 		}
-#endif
 		break;
-	case TxRxState::RDMDATA: {
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Rdm.nIndex++;
+		case TxRxState::CHECKSUMH:
+			nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
+			s_RxBuffer[nPortIndex].data[nIndex] = data;
+			s_RxBuffer[nPortIndex].Rdm.nIndex++;
+			s_RxBuffer[nPortIndex].Rdm.nChecksum = static_cast<uint16_t>(s_RxBuffer[nPortIndex].Rdm.nChecksum - static_cast<uint16_t>(data << 8));
+			s_RxBuffer[nPortIndex].State = TxRxState::CHECKSUML;
+			break;
+		case TxRxState::CHECKSUML: {
+			logic_analyzer::ch2_clear();
+			nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
+			s_RxBuffer[nPortIndex].data[nIndex] = data;
+			s_RxBuffer[nPortIndex].Rdm.nIndex++;
+			s_RxBuffer[nPortIndex].Rdm.nChecksum = static_cast<uint16_t>(s_RxBuffer[nPortIndex].Rdm.nChecksum - data);
 
-		s_RxBuffer[nPortIndex].Rdm.nChecksum = static_cast<uint16_t>(s_RxBuffer[nPortIndex].Rdm.nChecksum + data);
+			const auto *p = reinterpret_cast<struct TRdmMessage *>(&s_RxBuffer[nPortIndex].data[0]);
 
-		const auto *p = reinterpret_cast<struct TRdmMessage*>(&s_RxBuffer[nPortIndex].data[0]);
+			if (!((s_RxBuffer[nPortIndex].Rdm.nChecksum == 0) && (p->sub_start_code == E120_SC_SUB_MESSAGE))) {
+				s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket= 0; // This is correct.
+			} else {
+				s_RxBuffer[nPortIndex].Rdm.nIndex |= 0x4000;
+				gv_RdmDataReceiveEnd = DWT->CYCCNT;
+				logic_analyzer::ch1_clear();
+			}
 
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-
-		if ((nIndex >= 24) && (nIndex <= sizeof(struct TRdmMessage)) && (nIndex == p->message_length)) {
-			s_RxBuffer[nPortIndex].State = TxRxState::CHECKSUMH;
-			logic_analyzer::ch2_set();
-		} else if (nIndex > sizeof(struct TRdmMessage)) {
 			s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
 		}
-	}
 		break;
-	case TxRxState::CHECKSUMH:
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Rdm.nIndex++;
-		s_RxBuffer[nPortIndex].Rdm.nChecksum = static_cast<uint16_t>(s_RxBuffer[nPortIndex].Rdm.nChecksum - static_cast<uint16_t>(data << 8));
+		case TxRxState::RDMDISC:
+			nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
+			s_RxBuffer[nPortIndex].data[nIndex] = data;
+			s_RxBuffer[nPortIndex].Rdm.nIndex++;
 
-		s_RxBuffer[nPortIndex].State = TxRxState::CHECKSUML;
-		break;
-	case TxRxState::CHECKSUML: {
-		logic_analyzer::ch2_clear();
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Rdm.nIndex++;
-		s_RxBuffer[nPortIndex].Rdm.nChecksum = static_cast<uint16_t>(s_RxBuffer[nPortIndex].Rdm.nChecksum - data);
+			if (s_RxBuffer[nPortIndex].Rdm.nIndex > 24) {
+				s_RxBuffer[nPortIndex].Rdm.nDiscIndex = 0;
+				s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket |= 0x4000;
+				s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
+				break;
+			}
+#if DMX_MAX_PORTS >= 5
+			if (nPortIndex < 4) {
+#endif
+				nCounter = TIMER_CNT(TIMER2);
+#if DMX_MAX_PORTS >= 5
+			} else {
+				nCounter = TIMER_CNT(TIMER3);
+			}
+#endif
+			{
+				const uint16_t nDelta = nCounter - sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious;
+				sv_nRxDmxPackets[nPortIndex].nTimerCounterPrevious = nCounter;
+				const uint16_t nPulse = nCounter + nDelta + 4;
 
-		const auto *p = reinterpret_cast<struct TRdmMessage *>(&s_RxBuffer[nPortIndex].data[0]);
-
-		if (!((s_RxBuffer[nPortIndex].Rdm.nChecksum == 0) && (p->sub_start_code == E120_SC_SUB_MESSAGE))) {
+				switch(nPortIndex){
+				case 0:
+					TIMER_CH0CV(TIMER2) = nPulse;
+					break;
+#if DMX_MAX_PORTS >= 2
+				case 1:
+					TIMER_CH1CV(TIMER2) = nPulse;
+					break;
+#endif
+#if DMX_MAX_PORTS >= 3
+				case 2:
+					TIMER_CH2CV(TIMER2) = nPulse;
+					break;
+#endif
+#if DMX_MAX_PORTS >= 4
+				case 3:
+					TIMER_CH3CV(TIMER2) = nPulse;
+					break;
+#endif
+#if DMX_MAX_PORTS >= 5
+				case 4:
+					TIMER_CH0CV(TIMER3) = nPulse;
+					break;
+#endif
+#if DMX_MAX_PORTS >= 6
+				case 5:
+					TIMER_CH1CV(TIMER3) = nPulse;
+					break;
+#endif
+#if DMX_MAX_PORTS >= 7
+				case 6:
+					TIMER_CH2CV(TIMER3) = nPulse;
+					break;
+#endif
+#if DMX_MAX_PORTS == 8
+				case 7:
+					TIMER_CH3CV(TIMER3) = nPulse;
+					break;
+#endif
+				default:
+					assert(0);
+					__builtin_unreachable();
+					break;
+				}
+			}
+			break;
+		default:
 			s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket= 0; // This is correct.
-		} else {
-			s_RxBuffer[nPortIndex].Rdm.nIndex |= 0x4000;
-			gv_RdmDataReceiveEnd = DWT->CYCCNT;
-			logic_analyzer::ch1_clear();
-		}
-
-		s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
-	}
-		break;
-	case TxRxState::RDMDISC:
-		nIndex = s_RxBuffer[nPortIndex].Rdm.nIndex;
-		s_RxBuffer[nPortIndex].data[nIndex] = data;
-		s_RxBuffer[nPortIndex].Rdm.nIndex++;
-
-		if (s_RxBuffer[nPortIndex].Rdm.nIndex > 24) {
-			s_RxBuffer[nPortIndex].Rdm.nDiscIndex = 0;
-			s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket |= 0x4000;
 			s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
 			break;
-		}
-
-	    switch(nPortIndex){
-	    case 0:
-	    	TIMER_CH0CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 66U);
-	        break;
-#if DMX_MAX_PORTS >= 2
-	    case 1:
-	    	TIMER_CH1CV(TIMER2) = static_cast<uint16_t>(static_cast<uint16_t>(TIMER_CNT(TIMER2)) + 66U);
-	        break;
-#endif
-#if DMX_MAX_PORTS >= 3
-	    case 2:
-	        TIMER_CH2CV(TIMER2) = nPulse;
-	        break;
-#endif
-#if DMX_MAX_PORTS >= 4
-	    case 3:
-	         TIMER_CH3CV(TIMER2) = nPulse;
-	        break;
-#endif
-#if DMX_MAX_PORTS >= 5
-	    case 4:
-	        TIMER_CH0CV(TIMER3) = nPulse;
-	        break;
-#endif
-#if DMX_MAX_PORTS >= 6
-	    case 5:
-	        TIMER_CH1CV(TIMER3) = nPulse;
-	        break;
-#endif
-#if DMX_MAX_PORTS >= 7
-	    case 6:
-	        TIMER_CH2CV(TIMER3) = nPulse;
-	        break;
-#endif
-#if DMX_MAX_PORTS == 8
-	    case 7:
-	         TIMER_CH3CV(TIMER3) = nPulse;
-	        break;
-#endif
-	    default:
-			assert(0);
-			__builtin_unreachable();
-	        break;
-	    }
-
-		break;
-	default:
-		s_RxBuffer[nPortIndex].Dmx.nSlotsInPacket= 0; // This is correct.
-		s_RxBuffer[nPortIndex].State = TxRxState::IDLE;
-		break;
 	}
 
 	logic_analyzer::ch0_clear();
 }
 
 extern "C" {
+#if !defined(CONFIG_DMX_TRANSMIT_ONLY)
 #if defined (DMX_USE_USART0)
 void USART0_IRQHandler(void) {
 	irq_handler_dmx_rdm_input(USART0, config::USART0_PORT);
@@ -439,6 +454,7 @@ void UART6_IRQHandler(void) {
 void UART7_IRQHandler(void) {
 	irq_handler_dmx_rdm_input(UART7, config::UART7_PORT);
 }
+#endif
 #endif
 }
 
@@ -1080,7 +1096,7 @@ void TIMER6_IRQHandler() {
 }
 
 static void uart_dmx_config(uint32_t usart_periph) {
-	 gd32_uart_begin(usart_periph, 250000U, GD32_UART_BITS_8, GD32_UART_PARITY_NONE, GD32_UART_STOP_2BITS);
+	gd32_uart_begin(usart_periph, 250000U, GD32_UART_BITS_8, GD32_UART_PARITY_NONE, GD32_UART_STOP_2BITS);
 }
 
 Dmx *Dmx::s_pThis = nullptr;
@@ -1097,9 +1113,9 @@ Dmx::Dmx() {
 #if !defined (GD32F4XX)
 		gpio_init(s_DirGpio[i].nPort, GPIO_MODE_OUT_PP, GPIO_OSPEED_50MHZ, s_DirGpio[i].nPin);
 #else
-	    gpio_mode_set(s_DirGpio[i].nPort, GPIO_MODE_OUTPUT, GPIO_PUPD_PULLDOWN, s_DirGpio[i].nPin);
-	    gpio_output_options_set(s_DirGpio[i].nPort, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, s_DirGpio[i].nPin);
-	    gpio_af_set(s_DirGpio[i].nPort, GPIO_AF_0, s_DirGpio[i].nPin);
+		gpio_mode_set(s_DirGpio[i].nPort, GPIO_MODE_OUTPUT, GPIO_PUPD_PULLDOWN, s_DirGpio[i].nPin);
+		gpio_output_options_set(s_DirGpio[i].nPort, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, s_DirGpio[i].nPin);
+		gpio_af_set(s_DirGpio[i].nPort, GPIO_AF_0, s_DirGpio[i].nPin);
 #endif
 		ClearData(i);
 		sv_PortState[i] = PortState::IDLE;
@@ -1206,9 +1222,9 @@ void Dmx::StartData(uint32_t nUart, uint32_t nPortIndex) {
 			;
 
 		usart_interrupt_flag_clear(nUart, USART_INT_FLAG_RBNE);
-	    usart_interrupt_enable(nUart, USART_INT_RBNE);
+		usart_interrupt_enable(nUart, USART_INT_RBNE);
 
-	    sv_PortState[nPortIndex] = PortState::RX;
+		sv_PortState[nPortIndex] = PortState::RX;
 
 #if !defined(CONFIG_DMX_TRANSMIT_ONLY)
 		switch (nPortIndex) {

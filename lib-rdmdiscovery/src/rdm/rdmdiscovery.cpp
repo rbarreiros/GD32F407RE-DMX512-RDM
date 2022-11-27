@@ -93,8 +93,6 @@ void RDMDiscovery::Full(uint32_t nPortIndex, RDMTod *pRDMTod){
 bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 	struct TRdmMessage *pRdmMessage;
 	uint8_t uid[RDM_UID_SIZE];
-	auto bDeviceFound = false;
-	uint64_t MidPosition;
 
 	Hardware::Get()->WatchdogFeed();
 
@@ -120,6 +118,9 @@ bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 		if (pRdmMessage != nullptr) {
 			if ((pRdmMessage->command_class == E120_DISCOVERY_COMMAND_RESPONSE) && (memcmp(uid, pRdmMessage->source_uid, RDM_UID_SIZE) == 0)) {
 				m_pRDMTod->AddUid(uid);
+#ifndef NDEBUG
+				PrintUid(uid);
+#endif
 			}
 		} else {
 			return true;
@@ -132,19 +133,29 @@ bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 		m_Message.SetCc(E120_DISCOVERY_COMMAND);
 		m_Message.SetPid(E120_DISC_UNIQUE_BRANCH);
 		m_Message.SetPd(reinterpret_cast<const uint8_t*>(m_Pdl), 2 * RDM_UID_SIZE);
-		m_Message.Send(m_nPortIndex, 5800);
 
-		pRdmMessage = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+		auto nRetry = 0;
+
+		do {
+			Hardware::Get()->WatchdogFeed();
+
+			m_Message.Send(m_nPortIndex, 5800);
+			pRdmMessage = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+
+			if (++nRetry == 3) {
+				break;
+			}
+		} while (pRdmMessage == nullptr);
 
 		if (pRdmMessage != nullptr) {
-			bDeviceFound = true;
+			auto bDeviceFound = true;
 
 			if (IsValidDiscoveryResponse(reinterpret_cast<const uint8_t*>(pRdmMessage), uid)) {
 				bDeviceFound = QuickFind(uid);
 			}
 
 			if (bDeviceFound) {
-				MidPosition = ((LowerBound & (0x0000800000000000 - 1)) + (UpperBound & (0x0000800000000000 - 1))) / 2
+				const uint64_t MidPosition = ((LowerBound & (0x0000800000000000 - 1)) + (UpperBound & (0x0000800000000000 - 1))) / 2
 						+ (UpperBound & (0x0000800000000000) ? 0x0000400000000000 : 0 )
 						+ (LowerBound & (0x0000800000000000) ? 0x0000400000000000 : 0 );
 
@@ -215,7 +226,7 @@ bool RDMDiscovery::IsValidDiscoveryResponse(const uint8_t *pDiscResponse, uint8_
 
 	} else {
 #ifndef NDEBUG
-		printf("Not a valid response [%.2x]\n", pDiscResponse[0]);
+		RDMMessage::Print(pDiscResponse);
 #endif
 	}
 
