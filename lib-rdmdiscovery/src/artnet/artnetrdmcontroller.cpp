@@ -35,29 +35,19 @@
 #include "rdm.h"
 #include "rdm_e120.h"
 #include "rdmdevicecontroller.h"
-
 #include "rdmdiscovery.h"
 
 #include "debug.h"
 
 RDMTod *ArtNetRdmController::m_pRDMTod[artnetnode::MAX_PORTS];
 TRdmMessage ArtNetRdmController::s_rdmMessage;
-uint32_t ArtNetRdmController::s_nPorts;
 
-ArtNetRdmController::ArtNetRdmController(uint32_t nPorts): RDMDiscovery(RDMDeviceController::GetUID()) {
+ArtNetRdmController::ArtNetRdmController(): RDMDiscovery(RDMDeviceController::GetUID()) {
 	DEBUG_ENTRY
-	assert(nPorts <= artnetnode::MAX_PORTS);
 
-	s_nPorts = nPorts;
-	uint32_t nPortIndex;
-
-	for (nPortIndex = 0; nPortIndex < nPorts; nPortIndex++) {
+	for (uint32_t nPortIndex = 0; nPortIndex < artnetnode::MAX_PORTS; nPortIndex++) {
 		m_pRDMTod[nPortIndex] = new RDMTod;
 		assert(m_pRDMTod[nPortIndex] != nullptr);
-	}
-
-	for (; nPortIndex < artnetnode::MAX_PORTS; nPortIndex++) {
-		m_pRDMTod[nPortIndex] = nullptr;
 	}
 
 	s_rdmMessage.start_code = E120_SC_RDM;
@@ -65,7 +55,7 @@ ArtNetRdmController::ArtNetRdmController(uint32_t nPorts): RDMDiscovery(RDMDevic
 }
 
 const uint8_t *ArtNetRdmController::Handler(uint32_t nPortIndex, const uint8_t *pRdmData) {
-	assert(nPortIndex < s_nPorts);
+	assert(nPortIndex < artnetnode::MAX_PORTS);
 
 	if (pRdmData == nullptr) {
 		return nullptr;

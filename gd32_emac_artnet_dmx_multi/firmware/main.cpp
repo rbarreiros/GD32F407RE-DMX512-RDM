@@ -159,7 +159,7 @@ void main() {
 	StoreRDMDevice storeRdmDevice;
 
 	if (artnetParams.IsRdm()) {
-		auto pDiscovery = new ArtNetRdmController(node.GetActiveOutputPorts());
+		auto pDiscovery = new ArtNetRdmController;
 		assert(pDiscovery != nullptr);
 
 		RDMDeviceParams rdmDeviceParams(&storeRdmDevice);

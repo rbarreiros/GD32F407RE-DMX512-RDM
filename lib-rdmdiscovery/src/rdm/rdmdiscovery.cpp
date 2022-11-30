@@ -91,10 +91,17 @@ void RDMDiscovery::Full(uint32_t nPortIndex, RDMTod *pRDMTod){
 }
 
 bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
-	struct TRdmMessage *pRdmMessage;
 	uint8_t uid[RDM_UID_SIZE];
 
 	Hardware::Get()->WatchdogFeed();
+
+	auto *pLateResponse = m_Message.Receive(m_nPortIndex);
+#ifndef	NDEBUG
+	if (pLateResponse != nullptr) {
+		printf("%d ", __LINE__);
+		RDMMessage::Print(pLateResponse);
+	}
+#endif
 
 #ifndef NDEBUG
 	printf("FindDevices : ");
@@ -104,6 +111,8 @@ bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 	printf("\n");
 #endif
 
+	struct TRdmMessage *pResponse;
+
 	if (LowerBound == UpperBound) {
 		memcpy(uid, ConvertUid(LowerBound), RDM_UID_SIZE);
 
@@ -111,16 +120,32 @@ bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 		m_Message.SetPid(E120_DISC_MUTE);
 		m_Message.SetDstUid(uid);
 		m_Message.SetPd(nullptr, 0);
-		m_Message.Send(m_nPortIndex, 5800);
 
-		pRdmMessage = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+		auto nRetry = 0;
 
-		if (pRdmMessage != nullptr) {
-			if ((pRdmMessage->command_class == E120_DISCOVERY_COMMAND_RESPONSE) && (memcmp(uid, pRdmMessage->source_uid, RDM_UID_SIZE) == 0)) {
-				m_pRDMTod->AddUid(uid);
+		do {
+			Hardware::Get()->WatchdogFeed();
+
+			m_Message.Send(m_nPortIndex, 5800);
+			pResponse = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+
+			if (++nRetry == 10) {
+					break;
+			}
+		} while ((pResponse != nullptr) && (pResponse->command_class != E120_DISCOVERY_COMMAND_RESPONSE) && ((static_cast<uint16_t>((pResponse->param_id[0] << 8) + pResponse->param_id[1])) != E120_DISC_MUTE));
+
+		if (pResponse != nullptr) {
 #ifndef NDEBUG
-				PrintUid(uid);
+			RDMMessage::Print(reinterpret_cast<const uint8_t*>(pResponse));
 #endif
+			if ((pResponse->command_class == E120_DISCOVERY_COMMAND_RESPONSE) && (memcmp(uid, pResponse->source_uid, RDM_UID_SIZE) == 0)) {
+				m_pRDMTod->AddUid(uid);
+			} else {
+	#ifndef NDEBUG
+				printf("%d ", __LINE__);
+				PrintUid(uid);
+				printf("\n");
+	#endif
 			}
 		} else {
 			return true;
@@ -140,17 +165,17 @@ bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 			Hardware::Get()->WatchdogFeed();
 
 			m_Message.Send(m_nPortIndex, 5800);
-			pRdmMessage = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+			pResponse = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
 
 			if (++nRetry == 3) {
 				break;
 			}
-		} while (pRdmMessage == nullptr);
+		} while (pResponse == nullptr);
 
-		if (pRdmMessage != nullptr) {
+		if (pResponse != nullptr) {
 			auto bDeviceFound = true;
 
-			if (IsValidDiscoveryResponse(reinterpret_cast<const uint8_t*>(pRdmMessage), uid)) {
+			if (IsValidDiscoveryResponse(reinterpret_cast<const uint8_t*>(pResponse), uid)) {
 				bDeviceFound = QuickFind(uid);
 			}
 
@@ -236,8 +261,6 @@ bool RDMDiscovery::IsValidDiscoveryResponse(const uint8_t *pDiscResponse, uint8_
 bool RDMDiscovery::QuickFind(const uint8_t *uid) {
 	uint8_t r_uid[RDM_UID_SIZE];
 
-	Hardware::Get()->WatchdogFeed();
-
 #ifndef NDEBUG
 	printf("QuickFind : ");
 	PrintUid(uid);
@@ -248,35 +271,59 @@ bool RDMDiscovery::QuickFind(const uint8_t *uid) {
 	m_Message.SetPid(E120_DISC_MUTE);
 	m_Message.SetDstUid(uid);
 	m_Message.SetPd(nullptr, 0);
-	m_Message.Send(m_nPortIndex, 5800);
 
-	auto *pResponse = const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT));
+	TRdmMessage *pResponse;
+
+	auto nRetry = 0;
+
+	do {
+		Hardware::Get()->WatchdogFeed();
+
+		m_Message.Send(m_nPortIndex, 5800);
+		pResponse = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+
+		if (++nRetry == 10) {
+			break;
+		}
+	} while ((pResponse != nullptr) && (pResponse->command_class != E120_DISCOVERY_COMMAND_RESPONSE) && ((static_cast<uint16_t>((pResponse->param_id[0] << 8) + pResponse->param_id[1])) != E120_DISC_MUTE));
 
 	if (pResponse != nullptr) {
-		auto *pRdmMessage = reinterpret_cast<struct TRdmMessage*>(pResponse);
 #ifndef NDEBUG
-		RDMMessage::Print(pResponse);
+		RDMMessage::Print(reinterpret_cast<const uint8_t *>(pResponse));
 #endif
-		if ((pRdmMessage->command_class == E120_DISCOVERY_COMMAND_RESPONSE) && (memcmp(uid, pRdmMessage->source_uid, RDM_UID_SIZE) == 0)) {
+		if ((pResponse->command_class == E120_DISCOVERY_COMMAND_RESPONSE) && (memcmp(uid, pResponse->source_uid, RDM_UID_SIZE) == 0)) {
 			m_pRDMTod->AddUid(uid);
+		} else {
+#ifndef NDEBUG
+			printf("%d ", __LINE__);
+			PrintUid(uid);
+			printf("\n");
+#endif
 		}
 	}
-
-	Hardware::Get()->WatchdogFeed();
 
 	m_Message.SetDstUid(UID_ALL);
 	m_Message.SetCc(E120_DISCOVERY_COMMAND);
 	m_Message.SetPid(E120_DISC_UNIQUE_BRANCH);
 	m_Message.SetPd(reinterpret_cast<const uint8_t*>(m_Pdl), 2 * RDM_UID_SIZE);
-	m_Message.Send(m_nPortIndex, 5800);
 
-	pResponse = const_cast<uint8_t *>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT));
+	nRetry = 0;
 
-	Hardware::Get()->WatchdogFeed();
+	do {
+		Hardware::Get()->WatchdogFeed();
 
-	if ((pResponse != nullptr) && (IsValidDiscoveryResponse(pResponse, r_uid))) {
+		m_Message.Send(m_nPortIndex, 5800);
+		pResponse = reinterpret_cast<struct TRdmMessage*>(const_cast<uint8_t*>(m_Message.ReceiveTimeOut(m_nPortIndex, RECEIVE_TIME_OUT)));
+
+		if (++nRetry == 3) {
+			break;
+		}
+	} while (pResponse != nullptr);
+
+
+	if ((pResponse != nullptr) && (IsValidDiscoveryResponse(reinterpret_cast<uint8_t *>(pResponse), r_uid))) {
 		QuickFind(r_uid);
-	} else if ((pResponse != nullptr) && (!IsValidDiscoveryResponse(pResponse, r_uid))) {
+	} else if ((pResponse != nullptr) && (!IsValidDiscoveryResponse(reinterpret_cast<uint8_t *>(pResponse), r_uid))) {
 		return true;
 	}
 

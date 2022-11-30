@@ -26,20 +26,21 @@
  * THE SOFTWARE.
  */
 
+#ifdef NDEBUG
+//# undef NDEBUG
+#endif
+
 #include <cstring>
 #include <cstdio>
 #include <cassert>
 
+#include "artnetnode.h"
+#include "artnetnode_internal.h"
 #include "artnetrdm.h"
 
-#include "artnetnode.h"
 #include "network.h"
 
-#include "artnetnode_internal.h"
-
 #include "debug.h"
-
-using namespace artnet;
 
 void ArtNetNode::SetRmd(uint32_t nPortIndex, bool bEnable) {
 	DEBUG_ENTRY
@@ -135,7 +136,8 @@ void ArtNetNode::HandleTodData() {
 			DEBUG_PRINTF("nPortIndex=%u, portAddress=%u, pArtTodData->UidCount=%u",nPortIndex, portAddress, pArtTodData->UidCount);
 
 			for (uint32_t nUidIndex = 0; nUidIndex < pArtTodData->UidCount; nUidIndex++) {
-
+				const uint8_t *pUid = pArtTodData->Tod[nUidIndex];
+				m_pArtNetRdm->TodAddUid(nPortIndex, pUid);
 			}
 		}
 	}
@@ -172,7 +174,7 @@ void ArtNetNode::SendTod(uint32_t nPortIndex) {
 	pTodData->BlockCount = 0;
 	pTodData->UidCount = nDiscovered;
 
-	m_pArtNetRdm->Copy(nPortIndex, reinterpret_cast<uint8_t*>(pTodData->Tod));
+	m_pArtNetRdm->TodCopy(nPortIndex, reinterpret_cast<uint8_t*>(pTodData->Tod));
 
 	const auto nLength = sizeof(struct TArtTodData) - (sizeof(pTodData->Tod)) + (nDiscovered * 6U);
 
@@ -184,6 +186,8 @@ void ArtNetNode::SendTod(uint32_t nPortIndex) {
 void ArtNetNode::SendTodRequest(uint32_t nPortIndex) {
 	DEBUG_ENTRY
 	assert(nPortIndex < artnetnode::MAX_PORTS);
+
+	m_pArtNetRdm->TodReset(nPortIndex);
 
 	auto *pTodRequest = &(m_ArtNetPacket.ArtPacket.ArtTodRequest);
 	const auto nPage = nPortIndex / artnetnode::PAGE_SIZE;
@@ -218,9 +222,9 @@ void ArtNetNode::SetRdmHandler(ArtNetRdm *pArtNetTRdm, bool IsResponder) {
 
 	if (m_pArtNetRdm != nullptr) {
 		m_IsRdmResponder = IsResponder;
-		m_Node.Status1 |= Status1::RDM_CAPABLE;
+		m_Node.Status1 |= artnet::Status1::RDM_CAPABLE;
 	} else {
-		m_Node.Status1 &= static_cast<uint8_t>(~Status1::RDM_CAPABLE);
+		m_Node.Status1 &= static_cast<uint8_t>(~artnet::Status1::RDM_CAPABLE);
 	}
 
 	DEBUG_EXIT
@@ -246,8 +250,8 @@ void ArtNetNode::HandleRdm() {
 
 		if ((portAddress == m_OutputPort[nPortIndex].genericPort.nPortAddress) && m_OutputPort[nPortIndex].genericPort.bIsEnabled) {
 			if (!m_IsRdmResponder) {
-				if ((m_OutputPort[nPortIndex].protocol == PortProtocol::SACN) && (m_pArtNet4Handler != nullptr)) {
-					constexpr auto nMask = GoodOutput::OUTPUT_IS_MERGING | GoodOutput::DATA_IS_BEING_TRANSMITTED | GoodOutput::OUTPUT_IS_SACN;
+				if ((m_OutputPort[nPortIndex].protocol == artnet::PortProtocol::SACN) && (m_pArtNet4Handler != nullptr)) {
+					constexpr auto nMask = artnet::GoodOutput::OUTPUT_IS_MERGING | artnet::GoodOutput::DATA_IS_BEING_TRANSMITTED | artnet::GoodOutput::OUTPUT_IS_SACN;
 					m_OutputPort[nPortIndex].IsTransmitting = (m_pArtNet4Handler->GetStatus(nPortIndex) & nMask) != 0;
 				}
 
@@ -278,6 +282,7 @@ void ArtNetNode::HandleRdm() {
 		}
 	}
 
+#if defined	(RDM_CONTROLLER)
 	// Input ports
 	for (uint32_t nPortIndex = 0; nPortIndex < artnetnode::MAX_PORTS; nPortIndex++) {
 		if (!m_InputPort[nPortIndex].genericPort.bIsEnabled) {
@@ -286,17 +291,20 @@ void ArtNetNode::HandleRdm() {
 
 		if (m_InputPort[nPortIndex].genericPort.nPortAddress == portAddress) {
 			DEBUG_PRINTF("nPortIndex=%u, portAddress=%u", nPortIndex, portAddress);
+			artnet::rdm_send(nPortIndex, pArtRdm->RdmPacket);
 		}
 	}
+#endif
 
 	DEBUG_EXIT
 }
 
 void ArtNetNode::SetRdmUID(const uint8_t *pUid, bool bSupportsLLRP) {
 	memcpy(m_Node.DefaultUidResponder, pUid, sizeof(m_Node.DefaultUidResponder));
+
 	if (bSupportsLLRP) {
-		m_Node.Status3 |= Status3::SUPPORTS_LLRP;
+		m_Node.Status3 |= artnet::Status3::SUPPORTS_LLRP;
 	} else {
-		m_Node.Status3 &= static_cast<uint8_t>(~Status3::SUPPORTS_LLRP);
+		m_Node.Status3 &= static_cast<uint8_t>(~artnet::Status3::SUPPORTS_LLRP);
 	}
 }
