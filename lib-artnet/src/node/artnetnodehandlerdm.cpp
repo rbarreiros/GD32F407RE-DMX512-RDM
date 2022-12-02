@@ -27,7 +27,7 @@
  */
 
 #ifdef NDEBUG
-//# undef NDEBUG
+# undef NDEBUG	//FIXME remove #undef NDEBUG
 #endif
 
 #include <cstring>
@@ -61,6 +61,12 @@ void ArtNetNode::SetRmd(uint32_t nPortIndex, bool bEnable) {
 	DEBUG_EXIT
 }
 
+//TODO Make RDM discovery a state-machine.
+
+/**
+ * ArtTodControl is used to for an Output Gateway to flush its ToD and commence full discovery.
+ * If the Output Gateway has physical DMX512 ports, discovery could take minutes.
+ */
 void ArtNetNode::HandleTodControl() {
 	DEBUG_ENTRY
 
@@ -92,6 +98,11 @@ void ArtNetNode::HandleTodControl() {
 	DEBUG_EXIT
 }
 
+/**
+ * An Output Gateway must not interpret receipt of an ArtTodRequest
+ * as an instruction to perform full RDM Discovery on the DMX512 physical layer;
+ * it is just a request to send the ToD back to the controller.
+ */
 void ArtNetNode::HandleTodRequest() {
 	DEBUG_ENTRY
 
@@ -145,6 +156,14 @@ void ArtNetNode::HandleTodData() {
 	DEBUG_EXIT
 }
 
+/**
+ * An Output Gateway will send the ArtTodData packet in the following circumstances:
+ * - Upon power on or decice reset. 
+ * - In response to an ArtTodRequest if the Port-Address matches.
+ * - In response to an ArtTodControl if the Port-Address matches.
+ * - When their ToD changes due to the addition or deletion of a UID.
+ * - At the end of full RDM discovery.
+ */
 void ArtNetNode::SendTod(uint32_t nPortIndex) {
 	DEBUG_ENTRY
 	assert(nPortIndex < artnetnode::MAX_PORTS);
@@ -154,6 +173,8 @@ void ArtNetNode::SendTod(uint32_t nPortIndex) {
 
 	memcpy(pTodData->Id, artnet::NODE_ID, sizeof(pTodData->Id));
 	pTodData->OpCode = OP_TODDATA;
+	pTodData->ProtVerHi = 0;
+	pTodData->ProtVerLo = artnet::PROTOCOL_REVISION;
 	pTodData->RdmVer = 0x01; // Devices that support RDM STANDARD V1.0 set field to 0x01.
 
 	const auto nDiscovered = static_cast<uint8_t>(m_pArtNetRdm->GetUidCount(nPortIndex));
@@ -249,18 +270,16 @@ void ArtNetNode::HandleRdm() {
 		}
 
 		if ((portAddress == m_OutputPort[nPortIndex].genericPort.nPortAddress) && m_OutputPort[nPortIndex].genericPort.bIsEnabled) {
-			if (!m_IsRdmResponder) {
-				if ((m_OutputPort[nPortIndex].protocol == artnet::PortProtocol::SACN) && (m_pArtNet4Handler != nullptr)) {
-					constexpr auto nMask = artnet::GoodOutput::OUTPUT_IS_MERGING | artnet::GoodOutput::DATA_IS_BEING_TRANSMITTED | artnet::GoodOutput::OUTPUT_IS_SACN;
-					m_OutputPort[nPortIndex].IsTransmitting = (m_pArtNet4Handler->GetStatus(nPortIndex) & nMask) != 0;
-				}
-
-				if (m_OutputPort[nPortIndex].IsTransmitting) {
-					m_pLightSet->Stop(nPortIndex); // Stop DMX if was running
-				}
-
+#if defined	(RDM_CONTROLLER)
+			if ((m_OutputPort[nPortIndex].protocol == artnet::PortProtocol::SACN) && (m_pArtNet4Handler != nullptr)) {
+				constexpr auto nMask = artnet::GoodOutput::OUTPUT_IS_MERGING | artnet::GoodOutput::DATA_IS_BEING_TRANSMITTED | artnet::GoodOutput::OUTPUT_IS_SACN;
+				m_OutputPort[nPortIndex].IsTransmitting = (m_pArtNet4Handler->GetStatus(nPortIndex) & nMask) != 0;
 			}
 
+			if (m_OutputPort[nPortIndex].IsTransmitting) {
+				m_pLightSet->Stop(nPortIndex); // Stop DMX if was running
+			}
+#endif
 			const auto *pRdmResponse = const_cast<uint8_t*>(m_pArtNetRdm->Handler(nPortIndex, pArtRdm->RdmPacket));
 
 			if (pRdmResponse != nullptr) {
@@ -276,9 +295,11 @@ void ArtNetNode::HandleRdm() {
 				DEBUG_PUTS("No RDM response");
 			}
 
-			if (m_OutputPort[nPortIndex].IsTransmitting && (!m_IsRdmResponder)) {
+#if defined	(RDM_CONTROLLER)
+			if (m_OutputPort[nPortIndex].IsTransmitting) {
 				m_pLightSet->Start(nPortIndex); // Start DMX if was running
 			}
+#endif
 		}
 	}
 

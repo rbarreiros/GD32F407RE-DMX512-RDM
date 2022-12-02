@@ -91,8 +91,6 @@ void RDMDiscovery::Full(uint32_t nPortIndex, RDMTod *pRDMTod){
 }
 
 bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
-	uint8_t uid[RDM_UID_SIZE];
-
 	Hardware::Get()->WatchdogFeed();
 
 	auto *pLateResponse = m_Message.Receive(m_nPortIndex);
@@ -111,6 +109,7 @@ bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 	printf("\n");
 #endif
 
+	uint8_t uid[RDM_UID_SIZE];
 	struct TRdmMessage *pResponse;
 
 	if (LowerBound == UpperBound) {

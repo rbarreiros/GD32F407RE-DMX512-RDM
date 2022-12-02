@@ -125,6 +125,10 @@ void ArtNetNode::Start() {
 		assert(m_pArtNet4Handler != nullptr);
 	}
 
+#if defined	(RDM_CONTROLLER) || defined	(RDM_RESPONDER)
+	assert(m_pArtNetRdm != nullptr);
+#endif
+
 	m_Node.Status2 = static_cast<uint8_t>((m_Node.Status2 & ~(Status2::IP_DHCP)) | (Network::Get()->IsDhcpUsed() ? Status2::IP_DHCP : Status2::IP_MANUALY));
 	m_Node.Status2 = static_cast<uint8_t>((m_Node.Status2 & ~(Status2::DHCP_CAPABLE)) | (Network::Get()->IsDhcpCapable() ? Status2::DHCP_CAPABLE : 0));
 
@@ -150,10 +154,27 @@ void ArtNetNode::Start() {
 
 	if (m_pArtNetRdm != nullptr) {
 		for (uint32_t nPortIndex = 0; nPortIndex < artnetnode::MAX_PORTS; nPortIndex++) {
+			/* An Output Gateway will send the ArtTodData packet in the following circumstances:
+			 * - Upon power on or decice reset. 
+			 * - In response to an ArtTodRequest if the Port-Address matches.
+			 * - In response to an ArtTodControl if the Port-Address matches.
+			 * - When their ToD changes due to the addition or deletion of a UID.
+			 * - At the end of full RDM discovery.
+			 */
 			if ((m_OutputPort[nPortIndex].isRdmEnabled) && m_OutputPort[nPortIndex].genericPort.bIsEnabled) {
 				SendTod(nPortIndex);
 			}
 
+			// FIXME 
+			/* A controller should periodically broadcast an ArtTodRequest
+			 * to the network in order to ensure its TODs are up to date. 
+			 * 
+			 * When to send:
+			 * - Upon power on or decice reset. 
+			 * - At regular intervals [10 minutes]. In theory not needed
+			 *   since Output Gateways will broadcast an ArtTodData if their
+			 *   ToD changes, however it is safe programming.
+			 */
 			if (m_InputPort[nPortIndex].genericPort.bIsEnabled) {
 				SendTodRequest(nPortIndex);
 			}
@@ -334,6 +355,10 @@ void ArtNetNode::Run() {
 			HandleDmxIn();
 		}
 
+		if (m_pArtNetRdm != nullptr) {
+			HandleRdmIn();
+		}
+
 		if ((((m_Node.Status1 & Status1::INDICATOR_MASK) == Status1::INDICATOR_NORMAL_MODE)) && (LedBlink::Get()->GetMode() != ledblink::Mode::FAST))  {
 			if (artnet::VERSION > 3) {
 				if (m_State.nReceivingDmx != 0) {
@@ -425,6 +450,10 @@ void ArtNetNode::Run() {
 
 	if (m_pArtNetDmx != nullptr) {
 		HandleDmxIn();
+	}
+
+	if (m_pArtNetRdm != nullptr) {
+		HandleRdmIn();
 	}
 
 	if ((((m_Node.Status1 & Status1::INDICATOR_MASK) == Status1::INDICATOR_NORMAL_MODE)) && (LedBlink::Get()->GetMode() != ledblink::Mode::FAST)) {

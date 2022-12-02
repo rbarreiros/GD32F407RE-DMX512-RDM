@@ -47,6 +47,8 @@ public:
 	virtual bool TodAddUid(uint32_t nPortIndex, const uint8_t *pUid)=0;
 
 	virtual const uint8_t *Handler(uint32_t nPortIndex, const uint8_t *)=0;
+
+	virtual bool RdmReceive(uint32_t nPortIndex, uint8_t *pRdmData)=0;
 };
 
 #endif /* ARTNETRDM_H_ */

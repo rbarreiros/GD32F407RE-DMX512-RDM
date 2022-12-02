@@ -23,12 +23,18 @@
  * THE SOFTWARE.
  */
 
+#ifdef NDEBUG
+# undef NDEBUG	//FIXME remove #undef NDEBUG
+#endif
+
 #include <cstdint>
 #include <cstring>
 #include <cassert>
 
 #include "artnetrdm.h"
+
 #include "rdm.h"
+#include "rdmmessage.h"
 #include "rdm_e120.h"
 
 #include "debug.h"
@@ -36,35 +42,35 @@
 namespace artnet {
 
 void rdm_send(uint32_t nPortIndex, const uint8_t *pRdmData) {
-	DEBUG_ENTRY
 	assert(pRdmData != nullptr);
 
 	auto *pRdmMessage = reinterpret_cast<const TRdmMessageNoSc *>(pRdmData);
 
 	if ((pRdmMessage->command_class == E120_GET_COMMAND_RESPONSE) || (pRdmMessage->command_class == E120_SET_COMMAND_RESPONSE)) {
-		DEBUG_PUTS("");
-		struct TRdmMessage rdmCommand;
+		struct TRdmMessage rdmMessage;
 
-		rdmCommand.sub_start_code = E120_SC_RDM;
+		rdmMessage.start_code = E120_SC_RDM;
 
-		auto *rdm_data = reinterpret_cast<uint8_t*>(&rdmCommand);
+		auto *pData = reinterpret_cast<uint8_t *>(&rdmMessage);
 
-		memcpy(&rdm_data[1], pRdmData, sizeof(struct TRdmMessage) - 1);
+		memcpy(&pData[1], pRdmData, pRdmMessage->message_length - 1U);
 
 		uint32_t i;
-		uint16_t rdm_checksum = 0;
+		uint16_t nChecksum = 0;
 
-		for (i = 0; i < rdmCommand.message_length; i++) {
-			rdm_checksum = static_cast<uint16_t>(rdm_checksum + rdm_data[i]);
+		for (i = 0; i < rdmMessage.message_length; i++) {
+			nChecksum = static_cast<uint16_t>(nChecksum + pData[i]);
 		}
 
-		rdm_data[i++] = static_cast<uint8_t>(rdm_checksum >> 8);
-		rdm_data[i] = static_cast<uint8_t>(rdm_checksum & 0XFF);
+		pData[i++] = static_cast<uint8_t>(nChecksum >> 8);
+		pData[i] = static_cast<uint8_t>(nChecksum & 0XFF);
 
-		Rdm::SendRaw(nPortIndex, reinterpret_cast<const uint8_t*>(&rdmCommand), rdmCommand.message_length + RDM_MESSAGE_CHECKSUM_SIZE);
+		Rdm::SendRaw(nPortIndex, reinterpret_cast<const uint8_t*>(&rdmMessage), rdmMessage.message_length + RDM_MESSAGE_CHECKSUM_SIZE);
+
+#ifndef NDEBUG
+		RDMMessage::Print(reinterpret_cast<const uint8_t *>(&rdmMessage));
+#endif
 	}
-
-	DEBUG_EXIT
 }
 
 }  // namespace artnet

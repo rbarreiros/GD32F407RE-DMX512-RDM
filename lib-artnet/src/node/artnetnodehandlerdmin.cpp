@@ -42,9 +42,26 @@
 #include "debug.h"
 
 void ArtNetNode::HandleRdmIn() {
-	for (uint32_t i = 0; i < artnetnode::MAX_PORTS; i++) {
-		if (!m_InputPort[i].genericPort.bIsEnabled) {
+	auto *pArtRdm = &(m_ArtNetPacket.ArtPacket.ArtRdm);
+
+	for (uint32_t nPortIndex = 0; nPortIndex < artnetnode::MAX_PORTS; nPortIndex++) {
+		if (!m_InputPort[nPortIndex].genericPort.bIsEnabled) {
 			continue;
+		}
+
+		const auto nPage = nPortIndex / artnetnode::PAGE_SIZE;
+
+		if (m_pArtNetRdm->RdmReceive(nPortIndex, pArtRdm->RdmPacket)) {
+			memcpy(pArtRdm->Id, artnet::NODE_ID, sizeof(pArtRdm->Id));
+			pArtRdm->OpCode = OP_RDM;
+			pArtRdm->ProtVerHi = 0;
+			pArtRdm->ProtVerLo = artnet::PROTOCOL_REVISION;
+			pArtRdm->RdmVer = 0x01;
+			pArtRdm->Net = m_Node.NetSwitch[nPage];
+			pArtRdm->Command = 0;
+			pArtRdm->Address = m_InputPort[nPortIndex].genericPort.nDefaultAddress;
+
+			Network::Get()->SendTo(m_nHandle, pArtRdm, sizeof(struct TArtRdm), m_InputPort[nPortIndex].nDestinationIp, artnet::UDP_PORT);
 		}
 	}
 }

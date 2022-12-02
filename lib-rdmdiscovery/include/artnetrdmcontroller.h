@@ -71,6 +71,8 @@ public:
 
 	// Gateway
 
+	bool RdmReceive(uint32_t nPortIndex, uint8_t *pRdmData) override;
+
 	void TodReset(uint32_t nPortIndex) override {
 		assert(nPortIndex < artnetnode::MAX_PORTS);
 		m_pRDMTod[nPortIndex]->Reset();
@@ -93,6 +95,9 @@ public:
 		assert(nPortIndex < artnetnode::MAX_PORTS);
 		m_pRDMTod[nPortIndex]->Dump();
 	}
+
+private:
+	void RespondMessageAck(uint32_t nPortIndex, const uint8_t *pUid, const struct TRdmMessage *pRdmMessage);
 
 private:
 	static RDMTod *m_pRDMTod[artnetnode::MAX_PORTS];
