@@ -89,7 +89,7 @@ void RDMDiscovery::Full(uint32_t nPortIndex, RDMTod *pRDMTod){
 bool RDMDiscovery::FindDevices(uint64_t LowerBound, uint64_t UpperBound) {
 	Hardware::Get()->WatchdogFeed();
 
-	auto *pLateResponse = m_Message.Receive(m_nPortIndex);
+	auto *pLateResponse __attribute__((unused)) = m_Message.Receive(m_nPortIndex);
 #ifndef	NDEBUG
 	if (pLateResponse != nullptr) {
 		printf("%d ", __LINE__);
