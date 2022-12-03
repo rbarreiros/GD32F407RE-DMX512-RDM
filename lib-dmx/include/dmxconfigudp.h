@@ -26,10 +26,6 @@
 #ifndef DMXCONFIGUDP_H_
 #define DMXCONFIGUDP_H_
 
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-
 #include <cstdint>
 #include <cstring>
 #include <cassert>

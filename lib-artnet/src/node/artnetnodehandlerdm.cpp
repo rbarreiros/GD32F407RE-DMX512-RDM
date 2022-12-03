@@ -26,10 +26,6 @@
  * THE SOFTWARE.
  */
 
-#ifdef NDEBUG
-# undef NDEBUG	//FIXME remove #undef NDEBUG
-#endif
-
 #include <cstring>
 #include <cstdio>
 #include <cassert>
